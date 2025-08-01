@@ -4,14 +4,14 @@ std::string IMAGE_TOPIC;
 std::string IMU_TOPIC;
 std::vector<std::string> CAM_NAMES;
 std::string FISHEYE_MASK;
-int MAX_CNT;
-int MIN_DIST;
+int MAX_CNT; // 单帧图像最大特征点数目
+int MIN_DIST; // 两个特征点间最短的像素距离
 int WINDOW_SIZE;
 int FREQ;
-double F_THRESHOLD;
+double F_THRESHOLD; // 对极约束ransac求解的inlier阈值
 int SHOW_TRACK;
 int STEREO_TRACK;
-int EQUALIZE;
+int EQUALIZE; // 是否做均衡化处理
 int ROW;
 int COL;
 int FOCAL_LENGTH;
@@ -38,6 +38,7 @@ void readParameters(ros::NodeHandle &n)
 {
     std::string config_file;
     config_file = readParam<std::string>(n, "config_file");
+    // 使用OpenCV来读取配置文件
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
     if(!fsSettings.isOpened())
     {

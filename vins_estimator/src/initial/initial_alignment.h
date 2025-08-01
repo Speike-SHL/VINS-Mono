@@ -10,6 +10,11 @@
 using namespace Eigen;
 using namespace std;
 
+/**
+ * @brief 图像帧类, 包含图像帧中的特征点信息、时间戳、旋转矩阵、平移向量以及预积分信息
+ * @param _points 图像帧中的特征点信息 特征点id -> vector<pair<相机id, 特征点信息(归一化坐标3x1, 像素坐标2x1, 速度2x1)>>
+ * @param _t 时间戳
+ */
 class ImageFrame
 {
     public:
@@ -20,9 +25,9 @@ class ImageFrame
         };
         map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>> > > points;
         double t;
-        Matrix3d R;
-        Vector3d T;
-        IntegrationBase *pre_integration;
+        Matrix3d R;    // Rc0bk
+        Vector3d T;    // tc0ck
+        IntegrationBase *pre_integration;   // 该图像帧对应的预积分对象
         bool is_key_frame;
 };
 

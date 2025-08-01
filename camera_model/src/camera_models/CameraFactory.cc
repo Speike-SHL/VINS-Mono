@@ -86,6 +86,8 @@ CameraFactory::generateCamera(Camera::ModelType modelType,
     }
 }
 
+
+/// 根据配置文件读取相机类型,畸变系数和内参, 同时返回带有参数信息的类CameraPtr
 CameraPtr
 CameraFactory::generateCameraFromYamlFile(const std::string& filename)
 {
@@ -96,6 +98,7 @@ CameraFactory::generateCameraFromYamlFile(const std::string& filename)
         return CameraPtr();
     }
 
+    // 获取相机类型
     Camera::ModelType modelType = Camera::MEI;
     if (!fs["model_type"].isNone())
     {

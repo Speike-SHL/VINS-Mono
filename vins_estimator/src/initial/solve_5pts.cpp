@@ -189,7 +189,13 @@ namespace cv {
     }
 }
 
-
+/**
+ * 根据两帧匹配对求解R和带尺度的t
+ * @param[in] corres 两帧图像中对应点的归一化坐标
+ * @param[out] R 旋转矩阵 R12
+ * @param[out] t 带尺度的平移向量 t12
+ * @return true or false
+ */
 bool MotionEstimator::solveRelativeRT(const vector<pair<Vector3d, Vector3d>> &corres, Matrix3d &Rotation, Vector3d &Translation)
 {
     if (corres.size() >= 15)
@@ -201,12 +207,16 @@ bool MotionEstimator::solveRelativeRT(const vector<pair<Vector3d, Vector3d>> &co
             rr.push_back(cv::Point2f(corres[i].second(0), corres[i].second(1)));
         }
         cv::Mat mask;
+        // 求解E矩阵
         cv::Mat E = cv::findFundamentalMat(ll, rr, cv::FM_RANSAC, 0.3 / 460, 0.99, mask);
+        // 由于已经是归一化坐标系了, 内参矩阵直接用单位阵
         cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
         cv::Mat rot, trans;
+        // 从E恢复R21, t21. inliear_cnt表示这个R,t下的内点个数
         int inlier_cnt = cv::recoverPose(E, ll, rr, cameraMatrix, rot, trans, mask);
         //cout << "inlier_cnt " << inlier_cnt << endl;
 
+        // 将cv::Mat转为Eigen::Matrix
         Eigen::Matrix3d R;
         Eigen::Vector3d T;
         for (int i = 0; i < 3; i++)
@@ -216,8 +226,10 @@ bool MotionEstimator::solveRelativeRT(const vector<pair<Vector3d, Vector3d>> &co
                 R(i, j) = rot.at<double>(i, j);
         }
 
+        // 从R21, t21 -> R12, t12
         Rotation = R.transpose();
         Translation = -R.transpose() * T;
+        // 内点个数大于12个才认为这个解是好的
         if(inlier_cnt > 12)
             return true;
         else

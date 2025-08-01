@@ -9,7 +9,7 @@
 #include <fstream>
 
 const double FOCAL_LENGTH = 460.0;
-const int WINDOW_SIZE = 10;
+const int WINDOW_SIZE = 10;     // 滑窗大小, 默认为10
 const int NUM_OF_CAM = 1;
 const int NUM_OF_F = 1000;
 //#define UNIT_SPHERE_ERROR
@@ -50,11 +50,11 @@ enum SIZE_PARAMETERIZATION
 
 enum StateOrder
 {
-    O_P = 0,
-    O_R = 3,
-    O_V = 6,
-    O_BA = 9,
-    O_BG = 12
+    O_P = 0,    // 状态量中位置的索引
+    O_R = 3,    // 状态量中旋转的索引
+    O_V = 6,    // 状态量中速度的索引
+    O_BA = 9,   // 状态量中加计偏置的索引
+    O_BG = 12   // 状态量中陀螺偏置的索引
 };
 
 enum NoiseOrder

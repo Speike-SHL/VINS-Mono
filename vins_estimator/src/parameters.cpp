@@ -1,27 +1,28 @@
 #include "parameters.h"
 
-double INIT_DEPTH;
-double MIN_PARALLAX;
-double ACC_N, ACC_W;
-double GYR_N, GYR_W;
+double INIT_DEPTH;      // 三角化没成功的点给一个初始深度
+double MIN_PARALLAX;    // 最小视差, 根据视差判断是否为关键帧
+double ACC_N, ACC_W;    // 加速度计噪声和随机游走
+double GYR_N, GYR_W;    // 陀螺仪噪声和随机游走
 
-std::vector<Eigen::Matrix3d> RIC;
-std::vector<Eigen::Vector3d> TIC;
+std::vector<Eigen::Matrix3d> RIC;   // 旋转外参
+std::vector<Eigen::Vector3d> TIC;   // 平移外参
 
 Eigen::Vector3d G{0.0, 0.0, 9.8};
 
-double BIAS_ACC_THRESHOLD;
-double BIAS_GYR_THRESHOLD;
-double SOLVER_TIME;
-int NUM_ITERATIONS;
-int ESTIMATE_EXTRINSIC;
-int ESTIMATE_TD;
+double BIAS_ACC_THRESHOLD;  // 没用到
+double BIAS_GYR_THRESHOLD;  // 没用到
+double SOLVER_TIME;         // 单次优化最大求解时间
+int NUM_ITERATIONS;         // 单次优化最大迭代次数
+int ESTIMATE_EXTRINSIC;     // 外参标准位, 2: 没有先验外参, 初始化时要标定; 1: 有先验外参但不准确,初始化时不用管,后续紧耦合VIO时作为优化的初值; 0: 有准确先验外参,固定外参
+int ESTIMATE_TD;            // 传感器时延标注, 0: 传感器已经同步, 不估计时延; 1: 传感器未同步, 估计时延
 int ROLLING_SHUTTER;
 std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
 std::string IMU_TOPIC;
 double ROW, COL;
-double TD, TR;
+double TD;                  // 相机和IMU时延
+double TR;
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -54,7 +55,7 @@ void readParameters(ros::NodeHandle &n)
     SOLVER_TIME = fsSettings["max_solver_time"];
     NUM_ITERATIONS = fsSettings["max_num_iterations"];
     MIN_PARALLAX = fsSettings["keyframe_parallax"];
-    MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;
+    MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH; // 使用虚拟相机的焦距统一像素单位，方便设置阈值
 
     std::string OUTPUT_PATH;
     fsSettings["output_path"] >> OUTPUT_PATH;
@@ -115,6 +116,7 @@ void readParameters(ros::NodeHandle &n)
     BIAS_ACC_THRESHOLD = 0.1;
     BIAS_GYR_THRESHOLD = 0.1;
 
+    // 传感器时延相关
     TD = fsSettings["td"];
     ESTIMATE_TD = fsSettings["estimate_td"];
     if (ESTIMATE_TD)

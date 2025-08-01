@@ -6,6 +6,7 @@
 #include <ceres/ceres.h>
 using namespace Eigen;
 
+// 预积分类
 class IntegrationBase
 {
   public:
@@ -16,7 +17,6 @@ class IntegrationBase
           linearized_ba{_linearized_ba}, linearized_bg{_linearized_bg},
             jacobian{Eigen::Matrix<double, 15, 15>::Identity()}, covariance{Eigen::Matrix<double, 15, 15>::Zero()},
           sum_dt{0.0}, delta_p{Eigen::Vector3d::Zero()}, delta_q{Eigen::Quaterniond::Identity()}, delta_v{Eigen::Vector3d::Zero()}
-
     {
         noise = Eigen::Matrix<double, 18, 18>::Zero();
         noise.block<3, 3>(0, 0) =  (ACC_N * ACC_N) * Eigen::Matrix3d::Identity();
@@ -27,14 +27,21 @@ class IntegrationBase
         noise.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
     }
 
+    /**
+     * @brief 将数据放入buf, 并调用propagate进行一次预估
+     */
     void push_back(double dt, const Eigen::Vector3d &acc, const Eigen::Vector3d &gyr)
     {
+        // 相关时间差和传感器数据保留, 目的是VIO初始化时用来repropagate
         dt_buf.push_back(dt);
         acc_buf.push_back(acc);
         gyr_buf.push_back(gyr);
         propagate(dt, acc, gyr);
     }
 
+    /**
+     * 使用传入的零偏重新计算预积分量以及雅可比矩阵
+     */
     void repropagate(const Eigen::Vector3d &_linearized_ba, const Eigen::Vector3d &_linearized_bg)
     {
         sum_dt = 0.0;
@@ -51,6 +58,23 @@ class IntegrationBase
             propagate(dt_buf[i], acc_buf[i], gyr_buf[i]);
     }
 
+    /**
+     * @param[in] _dt 时间差
+     * @param[in] _acc_0 k时刻加速度计数据
+     * @param[in] _gyr_0 k时刻陀螺仪数据
+     * @param[in] _acc_1 k+1时刻加速度计数据
+     * @param[in] _gyr_1 k+1时刻陀螺仪数据
+     * @param[in] delta_p 从预积分开始到k时刻的 预积分 位置测量值
+     * @param[in] delta_q 从预积分开始到k时刻的 预积分 旋转测量值
+     * @param[in] delta_v 从预积分开始到k时刻的 预积分 速度测量值
+     * @param[in] linearized_ba k时刻的加速度计偏置
+     * @param[in] linearized_bg k时刻的陀螺仪偏置
+     * @param[out] result_delta_p 从预积分开始到k+1时刻的 预积分 位置测量值
+     * @param[out] result_delta_q 从预积分开始到k+1时刻的 预积分 旋转测量值
+     * @param[out] result_delta_v 从预积分开始到k+1时刻的 预积分 速度测量值
+     * @param[out] result_linearized_ba k+1时刻的加速度计偏置 = linearized_ba 预积分时零偏假设不变
+     * @param[out] result_linearized_bg k+1时刻的陀螺仪偏置 = linearized_bg 预积分时零偏假设不变
+     */
     void midPointIntegration(double _dt, 
                             const Eigen::Vector3d &_acc_0, const Eigen::Vector3d &_gyr_0,
                             const Eigen::Vector3d &_acc_1, const Eigen::Vector3d &_gyr_1,
@@ -60,16 +84,17 @@ class IntegrationBase
                             Eigen::Vector3d &result_linearized_ba, Eigen::Vector3d &result_linearized_bg, bool update_jacobian)
     {
         //ROS_INFO("midpoint integration");
-        Vector3d un_acc_0 = delta_q * (_acc_0 - linearized_ba);
-        Vector3d un_gyr = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
-        result_delta_q = delta_q * Quaterniond(1, un_gyr(0) * _dt / 2, un_gyr(1) * _dt / 2, un_gyr(2) * _dt / 2);
-        Vector3d un_acc_1 = result_delta_q * (_acc_1 - linearized_ba);
-        Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);
-        result_delta_p = delta_p + delta_v * _dt + 0.5 * un_acc * _dt * _dt;
-        result_delta_v = delta_v + un_acc * _dt;
+        Vector3d un_acc_0 = delta_q * (_acc_0 - linearized_ba);         // 预积分开始时刻 坐标系 下的 k时刻加速度计数据
+        Vector3d un_gyr = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;      // 中值积分计算陀螺的值
+        result_delta_q = delta_q * Quaterniond(1, un_gyr(0) * _dt / 2, un_gyr(1) * _dt / 2, un_gyr(2) * _dt / 2);   // 更新预积分旋转观测量 SAD(4.11)
+        Vector3d un_acc_1 = result_delta_q * (_acc_1 - linearized_ba);  // 预积分开始时刻 坐标系 下的 k+1时刻加速度计数据
+        Vector3d un_acc = 0.5 * (un_acc_0 + un_acc_1);                  // 中值积分计算加速度的值
+        result_delta_p = delta_p + delta_v * _dt + 0.5 * un_acc * _dt * _dt;// 更新预积分位置观测量 SAD(4.16)
+        result_delta_v = delta_v + un_acc * _dt;                            // 更新预积分速度观测量 SAD(4.13)
         result_linearized_ba = linearized_ba;
         result_linearized_bg = linearized_bg;         
 
+        // 更新协方差矩阵和雅可比
         if(update_jacobian)
         {
             Vector3d w_x = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
@@ -127,6 +152,9 @@ class IntegrationBase
 
     }
 
+    /**
+     * @brief 主要调用midPointIntegration函数, 将IMU向前预估一次, 并计算预积分观测量, 以及雅可比矩阵
+     */
     void propagate(double _dt, const Eigen::Vector3d &_acc_1, const Eigen::Vector3d &_gyr_1)
     {
         dt = _dt;
@@ -186,25 +214,26 @@ class IntegrationBase
     }
 
     double dt;
-    Eigen::Vector3d acc_0, gyr_0;
-    Eigen::Vector3d acc_1, gyr_1;
+    Eigen::Vector3d acc_0, gyr_0;   // k时刻 加计 | 陀螺仪
+    Eigen::Vector3d acc_1, gyr_1;   // k+1时刻 加计 | 陀螺仪
 
-    const Eigen::Vector3d linearized_acc, linearized_gyr;
-    Eigen::Vector3d linearized_ba, linearized_bg;
+    const Eigen::Vector3d linearized_acc, linearized_gyr; // 预积分初始时刻的 加计 | 陀螺仪, 构造后就不变了
+    Eigen::Vector3d linearized_ba, linearized_bg;   // 加计零偏 | 陀螺零偏
 
-    Eigen::Matrix<double, 15, 15> jacobian, covariance;
+    Eigen::Matrix<double, 15, 15> jacobian;     // 预积分观测噪声 δP, δV, δθ, δBa, δBg 对应的雅可比矩阵. 预积分观测对零偏的雅可比可由此获得
+    Eigen::Matrix<double, 15, 15> covariance;   // 预积分测量噪声 δP, δV, δθ, δBa, δBg 对应的协方差分布. 预积分观测的协方差分布可由此获得
     Eigen::Matrix<double, 15, 15> step_jacobian;
     Eigen::Matrix<double, 15, 18> step_V;
-    Eigen::Matrix<double, 18, 18> noise;
+    Eigen::Matrix<double, 18, 18> noise;    // 存储噪声. k时刻加计噪声 | k时刻陀螺仪噪声 | k+1时刻加计噪声 | k+1时刻陀螺仪噪声 | 陀螺零偏 | 加计零偏
 
-    double sum_dt;
-    Eigen::Vector3d delta_p;
-    Eigen::Quaterniond delta_q;
-    Eigen::Vector3d delta_v;
+    double sum_dt;              // 累积整个预积分时间
+    Eigen::Vector3d delta_p;    // k时刻 预积分 位移测量值
+    Eigen::Quaterniond delta_q; // k时刻 预积分 旋转测量值
+    Eigen::Vector3d delta_v;    // k时刻 预积分 速度测量值
 
-    std::vector<double> dt_buf;
-    std::vector<Eigen::Vector3d> acc_buf;
-    std::vector<Eigen::Vector3d> gyr_buf;
+    std::vector<double> dt_buf; // 储存历史的dt, 方便当 零偏修改时 重新预积分
+    std::vector<Eigen::Vector3d> acc_buf; // 储存历史的加计 方便当 零偏修改时 重新预积分
+    std::vector<Eigen::Vector3d> gyr_buf; // 储存历史的陀螺 方便当 零偏修改时 重新预积分
 
 };
 /*

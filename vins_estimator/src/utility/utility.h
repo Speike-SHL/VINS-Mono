@@ -12,6 +12,7 @@
 class Utility
 {
   public:
+    // 将theta转为四元数, 小量时的近似
     template <typename Derived>
     static Eigen::Quaternion<typename Derived::Scalar> deltaQ(const Eigen::MatrixBase<Derived> &theta)
     {
@@ -67,6 +68,9 @@ class Utility
         return ans;
     }
 
+    /**
+     * 旋转矩阵转为欧拉角 yaw pitch roll
+     */
     static Eigen::Vector3d R2ypr(const Eigen::Matrix3d &R)
     {
         Eigen::Vector3d n = R.col(0);
@@ -84,6 +88,9 @@ class Utility
         return ypr / M_PI * 180.0;
     }
 
+    /**
+     * 欧拉角转为旋转矩阵
+     */
     template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, 3, 3> ypr2R(const Eigen::MatrixBase<Derived> &ypr)
     {

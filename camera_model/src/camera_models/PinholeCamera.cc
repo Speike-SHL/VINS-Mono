@@ -9,6 +9,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "camodocal/gpl/gpl.h"
+#include <iostream>
 
 namespace camodocal
 {
@@ -443,19 +444,21 @@ PinholeCamera::liftSphere(const Eigen::Vector2d& p, Eigen::Vector3d& P) const
 /**
  * \brief Lifts a point from the image plane to its projective ray
  *
- * \param p image coordinates
- * \param P coordinates of the projective ray
+ * \param p 像素坐标
+ * \param P 去畸变后的归一化坐标
+ * \link https://www.cnblogs.com/weihao-ysgs/p/vins-distored.html
  */
 void
 PinholeCamera::liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) const
-{
+{ 
     double mx_d, my_d,mx2_d, mxy_d, my2_d, mx_u, my_u;
     double rho2_d, rho4_d, radDist_d, Dx_d, Dy_d, inv_denom_d;
     //double lambda;
 
     // Lift points to normalised plane
-    mx_d = m_inv_K11 * p(0) + m_inv_K13;
-    my_d = m_inv_K22 * p(1) + m_inv_K23;
+    // 像素坐标uv -> 归一化坐标X/Z, Y/Z
+    mx_d = m_inv_K11 * p(0) + m_inv_K13;    // X/Z = u / fx - cx / fx
+    my_d = m_inv_K22 * p(1) + m_inv_K23;    // Y/Z = v / fy - cy / fy
 
     if (m_noDistortion)
     {
@@ -465,7 +468,7 @@ PinholeCamera::liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) cons
     else
     {
         if (0)
-        {
+        {   // 不用看, 不会进来
             double k1 = mParameters.k1();
             double k2 = mParameters.k2();
             double p1 = mParameters.p1();
@@ -491,13 +494,19 @@ PinholeCamera::liftProjective(const Eigen::Vector2d& p, Eigen::Vector3d& P) cons
             // Recursive distortion model
             int n = 8;
             Eigen::Vector2d d_u;
+            // 先对畸变的归一化坐标施加畸变
             distortion(Eigen::Vector2d(mx_d, my_d), d_u);
             // Approximate value
+            // 计算得到第一次迭代的无畸变归一化坐标
             mx_u = mx_d - d_u(0);
             my_u = my_d - d_u(1);
 
+            // 迭代8次减去畸变距离, 最后逼近了真实值(去畸变后的归一化坐标)
+            // 更改了n后发现迭代8次后d_u就基本不变了
             for (int i = 1; i < n; ++i)
             {
+                // 对第n次迭代的无畸变坐标施加畸变, 因为离相机中心越远畸变越明显
+                // 所以mx_u会越来越接近真实的无畸变坐标
                 distortion(Eigen::Vector2d(mx_u, my_u), d_u);
                 mx_u = mx_d - d_u(0);
                 my_u = my_d - d_u(1);
@@ -637,14 +646,15 @@ PinholeCamera::undistToPlane(const Eigen::Vector2d& p_u, Eigen::Vector2d& p) con
 }
 
 /**
- * \brief Apply distortion to input point (from the normalised plane)
+ * \brief 在归一化平面上, 对输入的点施加畸变
  *
- * \param p_u undistorted coordinates of point on the normalised plane
- * \return to obtain the distorted point: p_d = p_u + d_u
+ * \param p_u 归一化平面上点的未畸变坐标
+ * \return 施加畸变后点的坐标: p_d = p_u + d_u
  */
 void
 PinholeCamera::distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u) const
 {
+    // 取出畸变系数
     double k1 = mParameters.k1();
     double k2 = mParameters.k2();
     double p1 = mParameters.p1();
@@ -652,10 +662,11 @@ PinholeCamera::distortion(const Eigen::Vector2d& p_u, Eigen::Vector2d& d_u) cons
 
     double mx2_u, my2_u, mxy_u, rho2_u, rad_dist_u;
 
-    mx2_u = p_u(0) * p_u(0);
-    my2_u = p_u(1) * p_u(1);
-    mxy_u = p_u(0) * p_u(1);
-    rho2_u = mx2_u + my2_u;
+    mx2_u = p_u(0) * p_u(0);    // x^2
+    my2_u = p_u(1) * p_u(1);    // y^2
+    mxy_u = p_u(0) * p_u(1);    // xy
+    rho2_u = mx2_u + my2_u;     // r^2
+    // 十四讲公式5.12
     rad_dist_u = k1 * rho2_u + k2 * rho2_u * rho2_u;
     d_u << p_u(0) * rad_dist_u + 2.0 * p1 * mxy_u + p2 * (rho2_u + 2.0 * mx2_u),
            p_u(1) * rad_dist_u + 2.0 * p2 * mxy_u + p1 * (rho2_u + 2.0 * my2_u);

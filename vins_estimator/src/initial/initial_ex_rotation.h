@@ -10,7 +10,11 @@ using namespace std;
 using namespace Eigen;
 #include <ros/console.h>
 
-/* This class help you to calibrate extrinsic rotation between imu and camera when your totally don't konw the extrinsic parameter */
+/**
+ * 初始化旋转外参的类
+ * This class help you to calibrate extrinsic rotation between imu and camera when your totally don't konw the extrinsic parameter
+ * // NOTE 平移外参由于尺度在初始化时不进行标定
+ */
 class InitialEXRotation
 {
 public:
@@ -25,12 +29,12 @@ private:
     void decomposeE(cv::Mat E,
                     cv::Mat_<double> &R1, cv::Mat_<double> &R2,
                     cv::Mat_<double> &t1, cv::Mat_<double> &t2);
-    int frame_count;
+    int frame_count;    // 初始化旋转外参类的帧计数器, 初始为0
 
-    vector< Matrix3d > Rc;
-    vector< Matrix3d > Rimu;
-    vector< Matrix3d > Rc_g;
-    Matrix3d ric;
+    vector< Matrix3d > Rc;      // 记录由对极几何得到的两帧相机间的R
+    vector< Matrix3d > Rimu;    // 记录由IMU预积分得到的两帧相机间的R
+    vector< Matrix3d > Rc_g;    // 将由IMU预积分得到的旋转, 使用之前算出的ric, 预测此时两帧相机间的相对旋转
+    Matrix3d ric;               // 相机到IMU的旋转外参
 };
 
 

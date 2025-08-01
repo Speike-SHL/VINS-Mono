@@ -56,14 +56,19 @@ class Estimator
         NON_LINEAR
     };
 
+    /**
+     * 枚举类, 边缘化标志
+     * 0: 边缘化旧的
+     * 1: 边缘化次新的
+     */
     enum MarginalizationFlag
     {
         MARGIN_OLD = 0,
         MARGIN_SECOND_NEW = 1
     };
 
-    SolverFlag solver_flag;
-    MarginalizationFlag  marginalization_flag;
+    SolverFlag solver_flag;                     // 求解器标志. 0: 初始化求解, 2: 紧耦合非线性求解
+    MarginalizationFlag  marginalization_flag;  // 边缘化标志. 0: 边缘化旧的, 1: 边缘化次新的
     Vector3d g;
     MatrixXd Ap[2], backup_A;
     VectorXd bp[2], backup_b;
@@ -71,28 +76,28 @@ class Estimator
     Matrix3d ric[NUM_OF_CAM];
     Vector3d tic[NUM_OF_CAM];
 
-    Vector3d Ps[(WINDOW_SIZE + 1)];
-    Vector3d Vs[(WINDOW_SIZE + 1)];
-    Matrix3d Rs[(WINDOW_SIZE + 1)];
+    Vector3d Ps[(WINDOW_SIZE + 1)];     // 滑窗内每帧在世界系下的平移, twck; 初始化时为相对于参考帧的平移tc0ck
+    Vector3d Vs[(WINDOW_SIZE + 1)];     // 滑窗内每帧在世界系下的速度, vwck; 初始化时为相对于参考帧的速度vc0bk
+    Matrix3d Rs[(WINDOW_SIZE + 1)];     // 滑窗内每帧在世界系下的旋转, Rwck; 初始化时为相对于参考帧的旋转Rc0bk
     Vector3d Bas[(WINDOW_SIZE + 1)];
     Vector3d Bgs[(WINDOW_SIZE + 1)];
     double td;
 
     Matrix3d back_R0, last_R, last_R0;
     Vector3d back_P0, last_P, last_P0;
-    std_msgs::Header Headers[(WINDOW_SIZE + 1)];
+    std_msgs::Header Headers[(WINDOW_SIZE + 1)];            // 滑窗中所有关键帧的时间戳
 
-    IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];
+    IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];   // 滑窗中所有帧对应的预积分
     Vector3d acc_0, gyr_0;
 
     vector<double> dt_buf[(WINDOW_SIZE + 1)];
     vector<Vector3d> linear_acceleration_buf[(WINDOW_SIZE + 1)];
     vector<Vector3d> angular_velocity_buf[(WINDOW_SIZE + 1)];
 
-    int frame_count;
+    int frame_count;    // 当前帧数, 增加到11帧就保持不变了
     int sum_of_outlier, sum_of_back, sum_of_front, sum_of_invalid;
 
-    FeatureManager f_manager;
+    FeatureManager f_manager;   // 特征管理器
     MotionEstimator m_estimator;
     InitialEXRotation initial_ex_rotation;
 
@@ -119,8 +124,8 @@ class Estimator
     MarginalizationInfo *last_marginalization_info;
     vector<double *> last_marginalization_parameter_blocks;
 
-    map<double, ImageFrame> all_image_frame;
-    IntegrationBase *tmp_pre_integration;
+    map<double, ImageFrame> all_image_frame; // 所有图像帧 <时间戳, 图像帧对象>
+    IntegrationBase *tmp_pre_integration;   // 做初始化时用的预积分量
 
     //relocalization variable
     bool relocalization_info;

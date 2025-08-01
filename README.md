@@ -1,3 +1,6 @@
+# 更详细代码解析
+https://blog.csdn.net/qq_41839222/article/details/85793998
+
 # VINS-Mono
 ## A Robust and Versatile Monocular Visual-Inertial State Estimator
 
